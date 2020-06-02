@@ -5,6 +5,7 @@
 #include<vector>
 #include<iomanip>
 
+
 using namespace std;
 
 //...........................................................
@@ -84,7 +85,7 @@ private:
 			{
 				for (int j = 0; j < len - 1; j++)
 				{
-					cout << setw(5) <<gm[i][j] << "  ";
+					cout << std::setw(5) <<gm[i][j] << "  ";
 				}
 				cout << endl;
 			}
@@ -96,22 +97,30 @@ private:
 	//rest of the code works the same.
 
 
-	float** B_matrix(vector<Nodes> &n, vector<Voltage> &v)
+	float** B_matrix(vector<Nodes> &n, vector<Voltage> &v, vector<Vdvs> &vd)
 	{
 		float** bm;
 		int row = (int)n.size();
 		int col = (int)v.size();
+		int d_col = (int)vd.size();
 
 		log("Generating B matrix");
 
 		bm = new float* [row - 1];
 		for (int i = 1; i < row; i++)
 		{
-			bm[i - 1] = new float[col];
+			bm[i - 1] = new float[col+d_col];
 
-			for (int j = 0; j < col; j++)
+			for (int j = 0; j < col+d_col; j++)
 			{
-				bm[i - 1][j] = v.at(j).pin_polarity(i);
+				if (j < col) 
+				{
+					bm[i - 1][j] = v.at(j).pin_polarity(i);
+				}
+				else
+				{
+					bm[i - 1][j] = vd.at(j - col).pin_polarity(i, true);
+				}
 			}
 		}
 
@@ -120,7 +129,7 @@ private:
 			cout << "\nB matrix:" << endl;
 			for (int i = 0; i < row - 1; i++)
 			{
-				for (int j = 0; j < col; j++)
+				for (int j = 0; j < col+d_col; j++)
 				{
 					cout << bm[i][j] << "  ";
 				}
@@ -131,17 +140,19 @@ private:
 		return bm;
 	}
 
-	float** C_matrix(vector<Nodes> &n, vector<Voltage> &v)
+	float** C_matrix(vector<Nodes> &n, vector<Voltage> &v, vector<Vdvs> &vd)
 	{
 		float** cm;
 		int row = (int)v.size();
+		int d_row =  (int)vd.size();
 		int col = (int)n.size();
 
 		log("Generating C matrix");
-		cm = new float* [row - 1];
+		cm = new float* [d_row+row];
+
 		for (int i = 0; i < row; i++)
 		{
-			cm[i] = new float[col];
+			cm[i] = new float[col-1];
 
 			for (int j = 1; j < col; j++)
 			{
@@ -149,10 +160,22 @@ private:
 			}
 		}
 
+		cout << "good here" << endl;
+
+		for (int i = row; i < row + d_row; i++)
+		{
+			cm[i] = new float[col - 1];
+
+			for (int j = 1; j < col; j++)
+			{
+				cm[i][j - 1] = vd.at(i-row).pin_polarity(j);
+			}
+		}
+
 		if (log_on)
 		{
 			cout << "\nC matrix:" << endl;
-			for (int i = 0; i < row; i++)
+			for (int i = 0; i < row+d_row; i++)
 			{
 				for (int j = 0; j < col - 1; j++)
 				{
@@ -165,9 +188,9 @@ private:
 		return cm;
 	}
 
-	float** D_matrix(vector<Voltage> &v)
+	float** D_matrix(vector<Voltage> &v, vector<Vdvs> &vd)
 	{
-		int len = v.size();
+		int len = v.size() + vd.size();
 		float** dm;
 		dm = new float* [len];
 		log("Generating D matrix");
@@ -177,7 +200,6 @@ private:
 			for (int j = 0; j < len; j++)
 			{
 				dm[i][j] = 0;
-
 			}
 		}
 
@@ -201,26 +223,26 @@ private:
 
 public:
 
-	float** A_matrix(vector<Nodes> &n, vector<Voltage> &v)
+	float** A_matrix(vector<Nodes> &n, vector<Voltage> &v, vector<Vdvs> &vd)
 	{
 		float** am;
 		float** gm, ** bm, ** cm, ** dm;
-		
-		log("Generating A matrix");
 
 		int nlen = n.size() - 1;
 		int vlen = v.size();
-		am = new float* [nlen + vlen];
+		int d_vlen = vd.size();
 
-		for (int i = 0; i < nlen + vlen; i++)
+		am = new float* [nlen + vlen + d_vlen];
+
+		for (int i = 0; i < nlen + vlen + d_vlen; i++)
 		{
-			am[i] = new float[nlen + vlen];
+			am[i] = new float[nlen + vlen + d_vlen];
 		}
 
 		gm = G_matrix(n);
-		bm = B_matrix(n, v);
-		cm = C_matrix(n, v);
-		dm = D_matrix(v);
+		bm = B_matrix(n, v, vd);
+		cm = C_matrix(n, v, vd);
+		dm = D_matrix(v, vd);
 
 		for (int i = 0; i < nlen; i++)
 		{
@@ -233,14 +255,14 @@ public:
 
 		for (int i = 0; i < nlen; i++)
 		{
-			for (int j = 0; j < vlen; j++)
+			for (int j = 0; j < vlen+d_vlen; j++)
 			{
 				am[i][j + nlen] = bm[i][j];
 			}
 			delete[] bm[i];
 		}
 
-		for (int i = 0; i < vlen; i++)
+		for (int i = 0; i < vlen+d_vlen; i++)
 		{
 			for (int j = 0; j < nlen; j++)
 			{
@@ -249,9 +271,9 @@ public:
 			delete[] cm[i];
 		}
 
-		for (int i = 0; i < vlen; i++)
+		for (int i = 0; i < vlen+d_vlen; i++)
 		{
-			for (int j = 0; j < vlen; j++)
+			for (int j = 0; j < vlen+d_vlen; j++)
 			{
 				am[i + nlen][j + nlen] = dm[i][j];
 			}
@@ -261,11 +283,11 @@ public:
 		if (log_on) 
 		{
 			cout << "A matrix:\n";
-			for (int i = 0; i < vlen + nlen; i++)
+			for (int i = 0; i < vlen + nlen+d_vlen; i++)
 			{
-				for (int j = 0; j < vlen + nlen; j++)
+				for (int j = 0; j < vlen + nlen+d_vlen; j++)
 				{
-					cout << setw(4) << setprecision(3) << am[i][j] << "   ";
+					cout << std::setw(4) << std::setprecision(3) << am[i][j] << "   ";
 				}
 				cout << endl;
 			}
@@ -275,13 +297,15 @@ public:
 
 	//Generating 'z' matrix
 
-	float* Z_matrix(vector<Nodes> &n, vector<Voltage> &v)
+	float* Z_matrix(vector<Nodes> &n, vector<Voltage> &v, vector<Vdvs> &vd)
 	{
 		log("Generating Z matrix");
 
 		int nlen = (int)n.size();
 		int vlen = (int)v.size();
-		float* zm = new float[nlen + vlen - 1];
+		int vd_len = (int)vd.size();
+
+		float* zm = new float[nlen + vd_len + vlen - 1];
 		for (int i = 1; i < nlen; i++)
 		{
 			zm[i - 1] = n.at(i).total_current(i);
@@ -290,11 +314,15 @@ public:
 		{
 			zm[i + nlen - 1] = v.at(i).value;
 		}
+		for (int i = 0; i < vd_len; i++)
+		{
+			zm[nlen + vlen - 1 + i] = 0;
+		}
 
 		if (log_on) 
 		{
 			cout << "\nZ matrix" << endl;
-			for (int i = 0; i < nlen + vlen - 1; i++)
+			for (int i = 0; i < nlen + vd_len +vlen - 1; i++)
 			{
 				cout << zm[i] << endl;
 			}
