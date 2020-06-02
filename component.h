@@ -1,11 +1,9 @@
 #pragma once
 #include<iostream>
+#include<string>
 #include<vector>
 
 using namespace std;
-
-bool log_on;
-
 
 //This is the base class of all components.
 //coz they have same attributes.two terminals and one value
@@ -14,13 +12,15 @@ class Component
 {
 public:
 
-	float value;
-	int pin_pos;
-	int pin_neg;
-	char name[5];
+	float value;	//primary value of the component
+	int pin_pos;	//+ side node of the component.//for polar components
+	int pin_neg;	//same
+	string name;
+	bool log_on;	//true if you need to print component properties in run time
+
 
 	//to be calculated value
-	float voltage_accross;
+	float voltage_accross;	
 	float current_through;
 
 	Component()
@@ -30,17 +30,39 @@ public:
 		pin_neg = 0;
 		voltage_accross = 0;
 		current_through = 0;
+		log_on = false;
+		name = "hello";
 	}
 
-	Component(char nam[5],float v, int p1, int p2)
+	Component(string nam,float v, int p1, int p2)
 	{
 		value = v;
 		pin_pos = p1;
 		pin_neg = p2;
 		voltage_accross = 0;
 		current_through = 0;
-		strcpy_s(name, nam);
+		name = nam;
+		log_on = false;
 	}
+
+	void Toggle_log(bool k)
+	{
+		log_on = k;
+	}
+
+	//checks if the given node attached to positive or negative side
+
+	virtual float pin_polarity(int pin)
+	{
+		if (pin == pin_pos)return 1.00;
+		else if (pin == pin_neg)return -1.00;
+		else
+		{
+			return 0.00;
+		}
+	}
+	
+	//returns the other pin attatched to this component
 
 	int getOther(int in_pin)
 	{
@@ -52,8 +74,6 @@ public:
 			cout << "Pin selection error!\n";
 			other_pin = -1;
 		}
-
-
 
 		return other_pin;
 	}
@@ -71,15 +91,7 @@ class Resistor : public Component
 {
 public:
 
-	Resistor()
-	{
-		//cout << "From default constructor" << endl;
-	}
-
-	Resistor(char n[5],float v1, int a1, int a2):Component(n,v1,a1,a2)
-	{
-		//cout << "From perameterized contrucotor" << endl;
-	}
+	Resistor(string n, float v1, int a1, int a2) :Component(n, v1, a1, a2) {}
 };
 
 //Ideal independent Voltage source
@@ -88,51 +100,54 @@ class Voltage : public Component
 {
 public:
 
-	Voltage()
-	{
-		//cout << "From default constructor" << endl;
-	}
-
-	Voltage(char n[5], float v1, int a1, int a2) :Component(n, v1, a1, a2)
-	{
-		//cout << "From perameterized contrucotor" << endl;
-	}
-
-	float pin_polarity(int pin)
-	{
-		if (pin == pin_pos)return 1.00;
-		else if (pin == pin_neg)return -1.00;
-		else
-		{
-			//cout << "Voltage pin error!!" << endl;
-			return 0.00;
-		}
-	}
-
+	Voltage(string n, float v1, int a1, int a2) :Component(n, v1, a1, a2){}
 };
 
 class Current : public Component
 {
 public:
 
-	Current()
+	Current(string n, float v1, int a1, int a2) :Component(n, v1, a1, a2){}
+};
+
+class Vdvs : public Component
+{
+
+public:
+
+	int cpin_pos;
+	int cpin_neg;
+	float gain;
+
+	Vdvs(string n, float v, int p1, int p2, int cp1, int cp2)
 	{
-		//cout << "From default constructor" << endl;
+		gain = v;
+		value = 0;
+		pin_pos = p1;
+		pin_neg = p2;
+		voltage_accross = 0;
+		current_through = 0;
+		cpin_pos = cp1;
+		cpin_neg = cp2;
+		log_on = false;
 	}
 
-	Current(char n[5], float v1, int a1, int a2) :Component(n, v1, a1, a2)
+	float pin_polarity(int pin)
 	{
-		//cout << "From perameterized contrucotor" << endl;
+		float polarity = 0;
+		polarity = pin == pin_pos ? 1.0 : pin == pin_neg ? -1.0 : 0.0;
+		if (pin == cpin_neg)polarity += gain;
+		else if (pin == cpin_pos)polarity -= gain;
+		return polarity;
 	}
 
-	int give_polarity(int p)
+	float pin_polarity(int pin, bool k)
 	{
-		if (p == pin_pos)return -1;
-		else if (p == pin_neg)return 1;
+		if (pin == pin_pos)return 1.00;
+		else if (pin == pin_neg)return -1.00;
 		else
 		{
-			cout << "Current pin error!!" << endl;
-			return 0;
+			return 0.00;
 		}
 	}
 
@@ -145,10 +160,15 @@ public:
 	vector<Resistor> rs;
 	vector<Voltage> vs;
 	vector<Current> is;
+	vector<Vdvs> vdvss;
+	float node_voltage;
+	bool log_on;
 
 	Nodes()
 	{
 		//cout << "Creating node\n";
+		log_on = false;
+		node_voltage = 0;
 	}
 
 
@@ -167,6 +187,10 @@ public:
 		is.push_back(i);
 	}
 
+	void add_element(Vdvs v)
+	{
+		vdvss.push_back(v);
+	}
 
 	void log()
 	{
@@ -205,7 +229,7 @@ public:
 		float i = 0;
 		for (int j = 0; j < (int)is.size(); j++)
 		{
-			i += is.at(j).give_polarity(pin) * is.at(j).value;
+			i -= is.at(j).pin_polarity(pin) * is.at(j).value;
 		}
 		return i;
 	}
