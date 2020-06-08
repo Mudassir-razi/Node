@@ -23,13 +23,48 @@ class Matrix
 {
 	bool log_on;
 	int a_mat_len;
+	int g_mat_len;
+	int b_mat_lenx;
+	int b_mat_leny;
+	int c_mat_lenx;
+	int c_mat_leny;
+	int d_mat_len;
+	int z_mat_len;
+
+	double** am;
+	double** gm, ** bm, ** cm, ** dm;
+	double* zm, * sol;
+	double del_time;
+
+	bool initialized;
+
+	Solver solve;
+	Helper logger;
 
 public:
 
 	Matrix()
 	{
 		a_mat_len = 0;
+		g_mat_len = 0;
+		b_mat_lenx = 0;
+		b_mat_leny = 0;
+		c_mat_lenx = 0;
+		c_mat_leny = 0;
+		d_mat_len = 0;
+		z_mat_len = 0;
 		log_on = false;
+
+		am = nullptr;
+		gm = nullptr;
+		bm = nullptr;
+		cm = nullptr;
+		dm = nullptr;
+		zm = nullptr;
+		sol = nullptr;
+		del_time = 0;
+		initialized = false;
+		solve.Toggle_log(false);
 	}
 
 
@@ -46,287 +81,200 @@ private:
 		if (log_on)cout << s << endl;
 	}
 
-	//G matrix...duh
-	float** G_matrix(vector<Nodes> &n)
+	double** Gen_matrix(int size)
 	{
-		float** gm;
-		int len = (int)n.size();
-		
-		log("Generating G matrix");
-
-		gm = new float* [len - 1];
-
-		for (int i = 1; i < len; i++)
+		double** mat = new double* [size];
+		for (int i = 0; i < size; i++)
 		{
-			gm[i - 1] = new float[len - 1];
-
-			for (int j = 1; j < len; j++)
+			mat[i] = new double [size];
+			for (int j = 0; j < size; j++)
 			{
-				gm[i - 1][j - 1] = 0;
-			}
-
-			gm[i - 1][i - 1] = n.at(i).r_inverse();
-
-			Nodes temp_n = n.at(i);
-			int r_count = temp_n.rs.size();
-			for (int j = 0; j < r_count; j++)
-			{
-				int index = temp_n.rs.at(j).getOther(i) - 1;
-				if (index >= 0 && index != i-1)gm[i - 1][index] -= 1 / temp_n.rs.at(j).value;
+				mat[i][j] = 0;
 			}
 		}
-
-		//If log on is true,prints the values of this matrix
-		//usefull for debugging
-
-		if (log_on) {
-			cout << "\nG matrix:" << endl;
-			for (int i = 0; i < len - 1; i++)
-			{
-				for (int j = 0; j < len - 1; j++)
-				{
-					cout << std::setw(5) <<gm[i][j] << "  ";
-				}
-				cout << endl;
-			}
-		}
-		return gm;
+		return mat;
 	}
 
-
-	//rest of the code works the same.
-
-
-	float** B_matrix(vector<Nodes> &n, vector<Voltage> &v, vector<Vdvs> &vd)
+	double** Gen_matrix(int sizex, int sizey)
 	{
-		float** bm;
-		int row = (int)n.size();
-		int col = (int)v.size();
-		int d_col = (int)vd.size();
-
-		log("Generating B matrix");
-
-		bm = new float* [row - 1];
-		for (int i = 1; i < row; i++)
+		double** mat = new double* [sizex];
+		for (int i = 0; i < sizex; i++)
 		{
-			bm[i - 1] = new float[col+d_col];
-
-			for (int j = 0; j < col+d_col; j++)
+			mat[i] = new double[sizey];
+			for (int j = 0; j < sizey; j++)
 			{
-				if (j < col) 
-				{
-					bm[i - 1][j] = v.at(j).pin_polarity(i);
-				}
-				else
-				{
-					bm[i - 1][j] = vd.at(j - col).pin_polarity(i, true);
-				}
+				mat[i][j] = 0;
 			}
 		}
-
-		if (log_on)
-		{
-			cout << "\nB matrix:" << endl;
-			for (int i = 0; i < row - 1; i++)
-			{
-				for (int j = 0; j < col+d_col; j++)
-				{
-					cout << bm[i][j] << "  ";
-				}
-				cout << endl;
-			}
-		}
-
-		return bm;
+		return mat;
 	}
 
-	float** C_matrix(vector<Nodes> &n, vector<Voltage> &v, vector<Vdvs> &vd)
+	double* Gen_matrix1D(int size)
 	{
-		float** cm;
-		int row = (int)v.size();
-		int d_row =  (int)vd.size();
-		int col = (int)n.size();
-
-		log("Generating C matrix");
-		cm = new float* [d_row+row];
-
-		for (int i = 0; i < row; i++)
+		double* mat = new double[size];
+		for (int i = 0; i < size; i++)
 		{
-			cm[i] = new float[col-1];
-
-			for (int j = 1; j < col; j++)
-			{
-				cm[i][j - 1] = v.at(i).pin_polarity(j);
-			}
+			mat[i] = 0;
 		}
-
-		cout << "good here" << endl;
-
-		for (int i = row; i < row + d_row; i++)
-		{
-			cm[i] = new float[col - 1];
-
-			for (int j = 1; j < col; j++)
-			{
-				cm[i][j - 1] = vd.at(i-row).pin_polarity(j);
-			}
-		}
-
-		if (log_on)
-		{
-			cout << "\nC matrix:" << endl;
-			for (int i = 0; i < row+d_row; i++)
-			{
-				for (int j = 0; j < col - 1; j++)
-				{
-					cout << cm[i][j] << "  ";
-				}
-				cout << endl;
-			}
-		}
-
-		return cm;
+		return mat;
 	}
 
-	float** D_matrix(vector<Voltage> &v, vector<Vdvs> &vd)
+	void copy_matrix(double** to, double** from, int offsetx, int offsety, int sizex, int sizey)
 	{
-		int len = v.size() + vd.size();
-		float** dm;
-		dm = new float* [len];
-		log("Generating D matrix");
+		for (int i = 0; i < sizex; i++)
+		{
+			for (int j = 0; j < sizey; j++)
+			{
+				to[i + offsetx][j + offsety] = from[i][j];
+			}
+			delete[] from[i];
+		}
+	}
+
+	double** duplicate_matrix(double** from, int sizex, int sizey)
+	{
+		double** mat;
+		mat = new double* [sizex];
+		for (int i = 0; i < sizex; i++)
+		{
+			mat[i] = new double[sizey];
+			for (int j = 0; j < sizey; j++)
+			{
+				mat[i][j] = from[i][j];
+			}
+		}
+		return mat;
+	}
+
+	double* duplicate_matrix(double* from, int size)
+	{
+		double* mat;
+		mat = new double[size];
+		for (int i = 0; i < size; i++)
+		{
+			mat[i] = from[i];
+		}
+		return mat;
+	}
+
+	void free_matrix(double** m, int sizex)
+	{
+		for(int i = 0; i < sizex; i++)
+		{
+			delete[] m[i];
+		}
+	}
+
+	template <typename T>
+	void update_matrix(vector<T>* comp)
+	{
+		int len = comp->size();
 		for (int i = 0; i < len; i++)
 		{
-			dm[i] = new float[len];
-			for (int j = 0; j < len; j++)
-			{
-				dm[i][j] = 0;
-			}
+			comp->at(i).update_matrix_G(gm);
+			comp->at(i).update_matrix_B(bm);
+			comp->at(i).update_matrix_C(cm);
+			comp->at(i).update_matrix_D(dm);
+			comp->at(i).update_matrix_Z(zm);
 		}
-
-		if (log_on)
-		{
-			cout << "\nD matrix:" << endl;
-			for (int i = 0; i < len; i++)
-			{
-				for (int j = 0; j < len; j++)
-				{
-					cout << dm[i][j] << "  ";
-				}
-				cout << endl;
-			}
-		}
-
-		return dm;
 	}
 
+	template <typename T>
+	void update_transient(vector<T>* comp)
+	{
+		int len = (int)comp->size();
+		for (int i = 0; i < len; i++)
+		{
+			int shift = comp->at(i).xm_shift;
+			comp->at(i).update_values(sol[shift] * del_time);
+			comp->at(i).update_matrix_Z(zm);
+		}
+	}
+
+	//G matrix...duh
 	//Here we actually put togather all matrices to form A
 
 public:
 
-	float** A_matrix(vector<Nodes> &n, vector<Voltage> &v, vector<Vdvs> &vd)
+	double* Solution_generator(Helper myhelper)
 	{
-		float** am;
-		float** gm, ** bm, ** cm, ** dm;
+		//calculating matrix sizes
+		//Edit this part if you add new components
+		g_mat_len = myhelper.nos->size() - 1;
+		b_mat_lenx = g_mat_len;
+		b_mat_leny = myhelper.ves->size() + myhelper.vdvses->size() + myhelper.capses->size();
+		c_mat_lenx = b_mat_leny;
+		c_mat_leny = b_mat_lenx;
+		d_mat_len = b_mat_leny;
+		a_mat_len = g_mat_len + c_mat_lenx;
+		z_mat_len = g_mat_len + c_mat_lenx;
 
-		int nlen = n.size() - 1;
-		int vlen = v.size();
-		int d_vlen = vd.size();
+		am = Gen_matrix(a_mat_len);
+		gm = Gen_matrix(g_mat_len);
+		bm = Gen_matrix(b_mat_lenx, b_mat_leny);
+		cm = Gen_matrix(c_mat_lenx, c_mat_leny);
+		dm = Gen_matrix(d_mat_len);
+		zm = Gen_matrix1D(z_mat_len);
+		
+		//Updating all matrices
+		update_matrix<Resistor>(myhelper.res);
+		update_matrix<Voltage>(myhelper.ves);
+		update_matrix<Current>(myhelper.ies);
+		update_matrix<Vdvs>(myhelper.vdvses);
+		update_matrix<Vdcs>(myhelper.vdcses);
+		update_matrix<Capacitor>(myhelper.capses);
 
-		am = new float* [nlen + vlen + d_vlen];
+		copy_matrix(am, gm, 0, 0, g_mat_len, g_mat_len);
+		copy_matrix(am, bm, 0, g_mat_len, b_mat_lenx, b_mat_leny);
+		copy_matrix(am, cm, g_mat_len, 0, c_mat_lenx, c_mat_leny);
+		copy_matrix(am, dm, g_mat_len, g_mat_len, d_mat_len, d_mat_len);
 
-		for (int i = 0; i < nlen + vlen + d_vlen; i++)
-		{
-			am[i] = new float[nlen + vlen + d_vlen];
-		}
+		log("A matrix:");
+		if(log_on)myhelper.log_matrix(am, a_mat_len);
+		log("Z matrix:");
+		if(log_on)myhelper.log_matrix(zm, z_mat_len);
 
-		gm = G_matrix(n);
-		bm = B_matrix(n, v, vd);
-		cm = C_matrix(n, v, vd);
-		dm = D_matrix(v, vd);
+		double** temp_am;
+		double* temp_zm;
+		temp_am = duplicate_matrix(am, a_mat_len, a_mat_len);
+		temp_zm = duplicate_matrix(zm, z_mat_len);
 
-		for (int i = 0; i < nlen; i++)
-		{
-			for (int j = 0; j < nlen; j++)
-			{
-				am[i][j] = gm[i][j];
-			}
-			delete[] gm[i];
-		}
-
-		for (int i = 0; i < nlen; i++)
-		{
-			for (int j = 0; j < vlen+d_vlen; j++)
-			{
-				am[i][j + nlen] = bm[i][j];
-			}
-			delete[] bm[i];
-		}
-
-		for (int i = 0; i < vlen+d_vlen; i++)
-		{
-			for (int j = 0; j < nlen; j++)
-			{
-				am[i + nlen][j] = cm[i][j];
-			}
-			delete[] cm[i];
-		}
-
-		for (int i = 0; i < vlen+d_vlen; i++)
-		{
-			for (int j = 0; j < vlen+d_vlen; j++)
-			{
-				am[i + nlen][j + nlen] = dm[i][j];
-			}
-			delete[] dm[i];
-		}
-
-		if (log_on) 
-		{
-			cout << "A matrix:\n";
-			for (int i = 0; i < vlen + nlen+d_vlen; i++)
-			{
-				for (int j = 0; j < vlen + nlen+d_vlen; j++)
-				{
-					cout << std::setw(4) << std::setprecision(3) << am[i][j] << "   ";
-				}
-				cout << endl;
-			}
-		}
-		return am;
+		sol = solve.solution(temp_am, temp_zm, a_mat_len);
+		log("Solution: ");
+		if (log_on)myhelper.log_matrix(sol, z_mat_len);
+		update_transient(myhelper.capses);
+		initialized = true;
+		return sol;
 	}
 
-	//Generating 'z' matrix
-
-	float* Z_matrix(vector<Nodes> &n, vector<Voltage> &v, vector<Vdvs> &vd)
+	double* transient(Helper myhelper, double dt)
 	{
-		log("Generating Z matrix");
+		del_time = dt;
+		if (!initialized)
+		{
+			Solution_generator(myhelper);
+			update_transient(myhelper.capses);
+			return sol;
+		}
+		else
+		{
+			Solver solve;
+			double** temp_am;
+			double* temp_zm;
+			temp_am = duplicate_matrix(am, a_mat_len, a_mat_len);
+			temp_zm = duplicate_matrix(zm, z_mat_len);
 
-		int nlen = (int)n.size();
-		int vlen = (int)v.size();
-		int vd_len = (int)vd.size();
+			log("A matrix: ");
+			if(log_on)myhelper.log_matrix(temp_am, a_mat_len);
+			log("Z matrix: ");
+			if (log_on)myhelper.log_matrix(temp_zm, z_mat_len);
 
-		float* zm = new float[nlen + vd_len + vlen - 1];
-		for (int i = 1; i < nlen; i++)
-		{
-			zm[i - 1] = n.at(i).total_current(i);
+			sol = solve.solution(temp_am, temp_zm, a_mat_len);
+			log("Solution: ");
+			if (log_on)myhelper.log_matrix(sol, z_mat_len);
+			update_transient(myhelper.capses);
+			
+			return sol;
 		}
-		for (int i = 0; i < vlen; i++)
-		{
-			zm[i + nlen - 1] = v.at(i).value;
-		}
-		for (int i = 0; i < vd_len; i++)
-		{
-			zm[nlen + vlen - 1 + i] = 0;
-		}
-
-		if (log_on) 
-		{
-			cout << "\nZ matrix" << endl;
-			for (int i = 0; i < nlen + vd_len +vlen - 1; i++)
-			{
-				cout << zm[i] << endl;
-			}
-		}
-		return zm;
 	}
 };
