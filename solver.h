@@ -26,7 +26,7 @@ public:
 
 private:
 
-    void Gauss_elem(float** a, float* z, int n)
+    void Gauss_elem(double** a, double* z, int n)
     {
         //n is the number of unknown variables
         int ppoint = 0;
@@ -35,7 +35,7 @@ private:
             //altering rows if pivot point is zero
             if (a[k][ppoint] == 0)
             {
-                float temp;
+                double temp;
 
                 for (int t = 0; t < n; t++)
                 {
@@ -50,7 +50,7 @@ private:
             }
             for (int row = k + 1; row < n; row++)
             {
-                float factor = (float)a[row][ppoint] / a[k][ppoint];
+                double factor = (double)a[row][ppoint] / a[k][ppoint];
                 for (int l = 0; l < n; l++)
                 {
                     a[row][l] -= a[k][l] * factor;
@@ -71,20 +71,20 @@ private:
                 {
                     cout << setw(5) << a[i][j] << "  ";
                 }
-                cout <<setw(5) <<"|"<< z[i];
+                cout <<std::setw(5) <<"|"<< z[i];
                 cout << endl;
             }
         }
-
     }
 
 public:
 
-    float* solution(float** a, float* z, int n)
+    double* solution(double** a, double* z, int n)
     {
         len = n;
         int ppoint = len - 1;
-        float* sol = new float[len];
+        double* sol = new double[len];
+        
 
         Gauss_elem(a, z, len);
 
@@ -93,7 +93,7 @@ public:
             sol[i] = 0;
         }
 
-        float summation;
+        double summation;
         for (int i = len - 1; i >= 0; i--)
         {
             summation = 0;
@@ -103,11 +103,14 @@ public:
                 summation += sol[j] * a[i][j];
             }
             sol[ppoint] = (z[i] - summation) / a[i][ppoint];
+            delete[] a[i];
             ppoint--;
         }
+        delete[] z;
 
         if (log_on)
         {
+            cout << endl;
             for (int i = 0; i < len; i++)
             {
                 cout << "solution: " << sol[i] << endl;
